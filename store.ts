@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import { User, UserRole, Trip, Order, OrderStatus, WorkflowType, Chat, Message } from './types';
+import { User, UserRole, Trip, Order, OrderStatus, WorkflowType, Chat, Message, WishlistRequest } from './types';
 
 
 interface UserPreferences {
   currency: 'USD' | 'EUR' | 'HNL';
   unitSystem: 'METRIC' | 'IMPERIAL';
   theme: 'LIGHT' | 'DARK' | 'SYSTEM';
-  language: 'EN' | 'ES'; // <--- NEW: Language Preference
+  language: 'EN' | 'ES'; 
   notifications: {
     push_matches: boolean;
     push_chat: boolean;
@@ -26,6 +26,9 @@ interface AppState {
   // Active Chats
   activeChats: Chat[];
 
+  // NEW: Wishlist Requests
+  activeRequests: WishlistRequest[];
+
   toggleRole: () => void;
   setUser: (user: User) => void;
   createProfile: (name: string) => void;
@@ -37,6 +40,9 @@ interface AppState {
   // Chat Actions
   getOrCreateChat: (tripId: string, otherUserName: string, otherUserPhoto?: string) => Chat;
   sendMessage: (chatId: string, text: string, sender: 'ME' | 'THEM') => void;
+
+  // New Request Action
+  addWishlistRequest: (request: WishlistRequest) => void;
 
   // Preferences Actions
   updatePreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => void;
@@ -81,7 +87,6 @@ const MOCK_TRIPS: Trip[] = [
   }
 ];
 
-// Mock Order (Preserved)
 const MOCK_ORDER: Order = {
   id: 'order_555',
   trip_id: 'trip_001',
@@ -100,18 +105,34 @@ const MOCK_ORDER: Order = {
   status_history: [{ status: OrderStatus.PENDING_ACCEPTANCE, timestamp: new Date().toISOString() }]
 };
 
+// NEW MOCK REQUESTS
+const MOCK_REQUESTS: WishlistRequest[] = [
+    {
+        id: 'req_1',
+        requester_uid: 'user_99',
+        requester_name: 'Maria Garcia',
+        origin_location: 'Miami',
+        destination_location: 'Honduras',
+        item_weight_kg: 5,
+        item_description: 'Car parts',
+        status: 'OPEN',
+        created_at: new Date().toISOString()
+    }
+];
+
 export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
   currentRole: UserRole.SENDER,
   activeTrips: MOCK_TRIPS,
   activeOrder: null,
   activeChats: [], 
+  activeRequests: MOCK_REQUESTS, // Initial Requests
   
   preferences: {
     currency: 'USD',
     unitSystem: 'METRIC',
     theme: 'SYSTEM',
-    language: 'EN', // <--- DEFAULT LANGUAGE
+    language: 'EN', 
     notifications: {
       push_matches: true,
       push_chat: true,
@@ -216,5 +237,9 @@ export const useStore = create<AppState>((set, get) => ({
             };
         })
     };
-  })
+  }),
+
+  addWishlistRequest: (request) => set((state) => ({ 
+      activeRequests: [request, ...state.activeRequests] 
+  }))
 }));

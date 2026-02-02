@@ -1,4 +1,3 @@
-
 export enum UserRole {
   SENDER = 'SENDER',
   TRAVELER = 'TRAVELER'
@@ -106,6 +105,8 @@ export interface Chat {
   unreadCount: number;
   messages: Message[];
 }
+
+// NEW: Wishlist Request
 export interface WishlistRequest {
   id: string;
   requester_uid: string;
