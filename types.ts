@@ -106,3 +106,15 @@ export interface Chat {
   unreadCount: number;
   messages: Message[];
 }
+export interface WishlistRequest {
+  id: string;
+  requester_uid: string;
+  requester_name: string;
+  requester_photo?: string;
+  origin_location: string;      // e.g. "USA" (Vague allowed)
+  destination_location: string; // e.g. "Honduras" (Vague allowed)
+  item_weight_kg: number;
+  item_description: string;
+  status: 'OPEN' | 'ACCEPTED' | 'COMPLETED';
+  created_at: string;
+}

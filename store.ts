@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { User, UserRole, Trip, Order, OrderStatus, WorkflowType, Chat, Message } from './types';
 
+
 interface UserPreferences {
   currency: 'USD' | 'EUR' | 'HNL';
   unitSystem: 'METRIC' | 'IMPERIAL';
   theme: 'LIGHT' | 'DARK' | 'SYSTEM';
+  language: 'EN' | 'ES'; // <--- NEW: Language Preference
   notifications: {
     push_matches: boolean;
     push_chat: boolean;
@@ -21,7 +23,7 @@ interface AppState {
   activeOrder: Order | null;
   preferences: UserPreferences;
   
-  // NEW: Active Chats
+  // Active Chats
   activeChats: Chat[];
 
   toggleRole: () => void;
@@ -41,21 +43,9 @@ interface AppState {
   toggleNotification: (key: keyof UserPreferences['notifications']) => void;
 }
 
-// ... (Keep your MOCK_USER_TEMPLATE, MOCK_TRIPS, MOCK_ORDER as they were) ...
-// For brevity, assuming MOCK constants are defined above as in your original file. 
-// If you copy-paste, ensure you keep the constants. 
-// Below is the store implementation:
-
-const MOCK_USER_TEMPLATE: User = {
-  uid: 'user_' + Date.now(),
-  display_name: 'New User',
-  photo_url: 'https://picsum.photos/200',
-  is_id_verified: true,
-  fcm_token: 'token_xyz',
-  created_at: new Date(),
-  sender_stats: { items_sent: 0, endorsements: [] },
-  traveler_stats: { total_trips: 0, successful_trips: 0, rating: 5.0, on_time_percentage: 100 }
-};
+// ... (KEEP MOCK CONSTANTS THE SAME AS BEFORE - MOCK_USER_TEMPLATE, MOCK_TRIPS, MOCK_ORDER) ...
+// NOTE: Ensure you don't delete the constants MOCK_USER_TEMPLATE, MOCK_TRIPS, MOCK_ORDER from your file.
+// For the sake of space, I am focusing on the store implementation below.
 
 const MOCK_TRIPS: Trip[] = [
   {
@@ -91,6 +81,7 @@ const MOCK_TRIPS: Trip[] = [
   }
 ];
 
+// Mock Order (Preserved)
 const MOCK_ORDER: Order = {
   id: 'order_555',
   trip_id: 'trip_001',
@@ -114,12 +105,13 @@ export const useStore = create<AppState>((set, get) => ({
   currentRole: UserRole.SENDER,
   activeTrips: MOCK_TRIPS,
   activeOrder: null,
-  activeChats: [], // Initial empty chats
+  activeChats: [], 
   
   preferences: {
     currency: 'USD',
     unitSystem: 'METRIC',
     theme: 'SYSTEM',
+    language: 'EN', // <--- DEFAULT LANGUAGE
     notifications: {
       push_matches: true,
       push_chat: true,
@@ -137,9 +129,15 @@ export const useStore = create<AppState>((set, get) => ({
 
   createProfile: (name: string) => set({
     currentUser: {
-      ...MOCK_USER_TEMPLATE,
+      // Re-using the logic, ensuring unique ID
       uid: 'user_' + Date.now(),
-      display_name: name
+      display_name: name,
+      photo_url: 'https://picsum.photos/200',
+      is_id_verified: true,
+      fcm_token: 'token_xyz',
+      created_at: new Date(),
+      sender_stats: { items_sent: 0, endorsements: [] },
+      traveler_stats: { total_trips: 0, successful_trips: 0, rating: 5.0, on_time_percentage: 100 }
     }
   }),
   
@@ -175,19 +173,15 @@ export const useStore = create<AppState>((set, get) => ({
     }
   })),
 
-  // --- NEW CHAT ACTIONS ---
-
   getOrCreateChat: (tripId, otherUserName, otherUserPhoto) => {
     const state = get();
-    // 1. Check if chat exists
     const existing = state.activeChats.find(c => c.tripId === tripId);
     if (existing) return existing;
 
-    // 2. Create new if not
     const newChat: Chat = {
         id: 'chat_' + Date.now(),
         tripId,
-        otherUserUid: 'traveler_xyz', // Mock ID
+        otherUserUid: 'traveler_xyz',
         otherUserName,
         otherUserPhoto,
         lastMessage: 'Chat started',
