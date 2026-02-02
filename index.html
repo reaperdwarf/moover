@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script 
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB-DYCl45NEGjm7hSgleNJfrmN-1bIWF1Y&libraries=places"
+      async
+      defer
+    ></script>
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Moover</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'moover-blue': '#0066FF',
+              'moover-dark': '#111111',
+              'moover-gray': '#F4F4F5',
+            },
+            spacing: {
+              'safe-top': 'env(safe-area-inset-top)',
+              'safe-bottom': 'env(safe-area-inset-bottom)',
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+            },
+            keyframes: {
+              'slide-up': {
+                '0%': { transform: 'translateY(100%)' },
+                '100%': { transform: 'translateY(0)' },
+              },
+              'fade-in': {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              }
+            },
+            animation: {
+              'slide-up': 'slide-up 0.3s ease-out',
+              'fade-in': 'fade-in 0.2s ease-out',
+            }
+          },
+        },
+      }
+    </script>
+    
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@^19.2.3",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+        "zustand": "https://esm.sh/zustand@^5.0.10",
+        "react-dom": "https://esm.sh/react-dom@^19.2.3",
+        "i18next": "https://esm.sh/i18next@^23.7.16",
+        "react-i18next": "https://esm.sh/react-i18next@^14.0.0",
+        "i18next-browser-languagedetector": "https://esm.sh/i18next-browser-languagedetector@^7.2.0"
+      }
+    }
+    </script>
+  </head>
+  
+  <body class="bg-white dark:bg-moover-dark text-moover-dark dark:text-white antialiased">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "Moover",
+  "description": "The world's most trusted P2P Crowd-Shipping marketplace. Connects Senders with Travelers to utilize empty luggage space.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
