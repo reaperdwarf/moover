@@ -7,6 +7,7 @@ import { CourierHandoffSheet } from './components/CourierHandoffSheet';
 import { PackageTracker } from './components/PackageTracker';
 import { Home, User as UserIcon, MessageSquare, Box, Map as MapIcon } from 'lucide-react';
 import { useStore } from './store';
+import { MessagesTab } from './components/MessagesTab';
 
 // Navigation Component
 const BottomNav = () => {
@@ -54,16 +55,6 @@ const ActivityPlaceholder = () => {
   );
 };
 
-const MessagesPlaceholder = () => {
-  const { t } = useTranslation();
-  return (
-    <div className="p-8 text-center text-gray-500 dark:text-gray-400 pt-20 h-full bg-gray-50 dark:bg-black transition-colors">
-        <h2 className="text-xl font-bold text-moover-dark dark:text-white mb-2">{t('messages_title')}</h2>
-        <p>{t('inbox_empty')}</p>
-    </div>
-  );
-};
-
 const App: React.FC = () => {
   const { preferences } = useStore();
 
@@ -89,7 +80,7 @@ const App: React.FC = () => {
           <Route path="/" element={<SearchAndBook />} />
           <Route path="/activity" element={<ActivityPlaceholder />} />
           <Route path="/track" element={<PackageTracker />} />
-          <Route path="/messages" element={<MessagesPlaceholder />} />
+          <Route path="/messages" element={<MessagesTab />} />
           <Route path="/profile" element={<UserProfile />} />
         </Routes>
         

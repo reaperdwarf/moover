@@ -86,3 +86,23 @@ export interface Order {
   status: OrderStatus;
   status_history: { status: OrderStatus; timestamp: string }[];
 }
+// --- CHAT TYPES ---
+
+export interface Message {
+  id: string;
+  text: string;
+  sender: 'ME' | 'THEM';
+  timestamp: string; // ISO String
+}
+
+export interface Chat {
+  id: string;
+  tripId: string;
+  otherUserUid: string; // The traveler or sender's ID
+  otherUserName: string;
+  otherUserPhoto?: string;
+  lastMessage: string;
+  lastMessageTimestamp: string;
+  unreadCount: number;
+  messages: Message[];
+}

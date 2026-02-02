@@ -3,8 +3,12 @@ import { Trip } from '../types';
 import { X, ShieldCheck, Star, MessageCircle, Package, ArrowRight, Share2, Heart, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { HapticsService } from '../services/capacitorService';
+import { useStore } from '../store'; // <--- NEW IMPORT
+
+// --- SHEET IMPORTS ---
 import { OfferWizard } from './OfferWizard'; 
 import { DeliveryCoordinationSheet } from './DeliveryCoordinationSheet';
+import { ChatSheet } from './ChatSheet'; // <--- RESTORED CHAT
 
 interface TripDetailSheetProps {
   trip: Trip;
@@ -13,12 +17,35 @@ interface TripDetailSheetProps {
 
 export const TripDetailSheet: React.FC<TripDetailSheetProps> = ({ trip, onClose }) => {
   const { t } = useTranslation();
+  const { preferences } = useStore(); // <--- GET PREFERENCES
+  
+  // --- UNIT CONVERSION LOGIC ---
+  const isImperial = preferences.unitSystem === 'IMPERIAL';
+  
+  // 1. Convert Weight (e.g. 10kg -> 22lbs)
+  const displayWeight = isImperial 
+    ? Math.round(trip.available_weight_kg * 2.20462) 
+    : trip.available_weight_kg;
+
+  // 2. Convert Price (e.g. $22/kg -> $10/lb)
+  const displayPrice = isImperial
+    ? Math.round(trip.price_per_kg / 2.20462)
+    : trip.price_per_kg;
+
+  const unitLabel = isImperial ? 'lbs' : 'kg';
+  // ----------------------------
   
   // State for toggling sheets
   const [showOfferWizard, setShowOfferWizard] = useState(false);
   const [showDelivery, setShowDelivery] = useState(false);
+  const [showChat, setShowChat] = useState(false); // <--- RESTORED CHAT STATE
 
-  // The "Safe" Button Click Handler
+  // Button Handlers
+  const handleChatPress = () => {
+      HapticsService.impact('LIGHT');
+      setShowChat(true);
+  };
+
   const handleBookPress = () => {
       console.log("Button Clicked: Requesting to Carry...");
       try {
@@ -94,14 +121,17 @@ export const TripDetailSheet: React.FC<TripDetailSheetProps> = ({ trip, onClose 
                  </div>
             </div>
 
-            {/* Stats Grid */}
+            {/* Stats Grid (UPDATED TO USE UNIT VARIABLES) */}
             <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-2xl border border-blue-100 dark:border-blue-800">
                     <div className="flex items-center gap-2 mb-2">
                         <Package className="w-5 h-5 text-moover-blue" />
                         <span className="text-xs font-bold text-blue-600 dark:text-blue-300 uppercase">{t('capacity')}</span>
                     </div>
-                    <div className="text-2xl font-bold text-moover-dark dark:text-white">{trip.available_weight_kg} <span className="text-sm font-medium text-gray-500">kg</span></div>
+                    {/* DYNAMIC WEIGHT & UNIT */}
+                    <div className="text-2xl font-bold text-moover-dark dark:text-white">
+                        {displayWeight} <span className="text-sm font-medium text-gray-500">{unitLabel}</span>
+                    </div>
                     <div className="text-xs text-gray-500 mt-1">Open to boxes & luggage</div>
                 </div>
                 <div className="bg-green-50 dark:bg-green-900/20 p-5 rounded-2xl border border-green-100 dark:border-green-800">
@@ -109,8 +139,17 @@ export const TripDetailSheet: React.FC<TripDetailSheetProps> = ({ trip, onClose 
                         <div className="font-bold text-green-600 text-lg">$</div>
                         <span className="text-xs font-bold text-green-600 dark:text-green-300 uppercase">{t('price')}</span>
                     </div>
-                    <div className="text-2xl font-bold text-moover-dark dark:text-white">${trip.price_per_kg} <span className="text-sm font-medium text-gray-500">/kg</span></div>
-                    <div className="text-xs text-gray-500 mt-1">~${Math.round(trip.price_per_kg * 2.2)} /lb</div>
+                    {/* DYNAMIC PRICE & UNIT */}
+                    <div className="text-2xl font-bold text-moover-dark dark:text-white">
+                        ${displayPrice} <span className="text-sm font-medium text-gray-500">/{unitLabel}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                        {/* Inverse calc for reference */}
+                        {isImperial 
+                            ? `~$${trip.price_per_kg} /kg` 
+                            : `~$${Math.round(trip.price_per_kg * 2.2)} /lb`
+                        }
+                    </div>
                 </div>
             </div>
 
@@ -134,13 +173,16 @@ export const TripDetailSheet: React.FC<TripDetailSheetProps> = ({ trip, onClose 
         {/* Sticky Footer */}
         <div className="absolute bottom-0 left-0 right-0 p-5 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 z-30 pb-safe-bottom">
             <div className="flex gap-3">
-                {/* Chat Button */}
-                <button className="flex-1 py-4 bg-gray-100 dark:bg-zinc-800 text-moover-dark dark:text-white font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2">
+                {/* Chat Button (WIRED UP) */}
+                <button 
+                    onClick={handleChatPress}
+                    className="flex-1 py-4 bg-gray-100 dark:bg-zinc-800 text-moover-dark dark:text-white font-bold rounded-2xl active:scale-95 transition-transform flex items-center justify-center gap-2"
+                >
                     <MessageCircle className="w-5 h-5" />
                     Chat
                 </button>
                 
-                {/* TEMP: Test Delivery Flow */}
+                {/* Delivery Button */}
                 <button 
                     onClick={() => setShowDelivery(true)}
                     className="px-4 py-4 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-bold rounded-2xl active:scale-95 transition-transform"
@@ -148,6 +190,7 @@ export const TripDetailSheet: React.FC<TripDetailSheetProps> = ({ trip, onClose 
                     Test Delivery
                 </button>
 
+                {/* Book Button */}
                 <button 
                     onClick={handleBookPress}
                     className="flex-[2] py-4 bg-moover-dark dark:bg-white text-white dark:text-moover-dark font-bold rounded-2xl shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
@@ -161,16 +204,23 @@ export const TripDetailSheet: React.FC<TripDetailSheetProps> = ({ trip, onClose 
     </div>
 
     {/* RENDER WIZARD IF ACTIVE */}
-    {/* FORCE Z-INDEX 100 TO MAKE VISIBLE */}
     {showOfferWizard && (
         <div className="relative z-[100]">
             <OfferWizard trip={trip} onClose={() => setShowOfferWizard(false)} />
         </div>
     )}
 
+    {/* RENDER DELIVERY DASHBOARD */}
     {showDelivery && (
         <div className="relative z-[100]">
             <DeliveryCoordinationSheet tripId={trip.id} onClose={() => setShowDelivery(false)} />
+        </div>
+    )}
+
+    {/* RENDER CHAT (RESTORED) */}
+    {showChat && (
+        <div className="relative z-[100]">
+            <ChatSheet tripId={trip.id} travelerName={trip.traveler_name} onClose={() => setShowChat(false)} />
         </div>
     )}
     </>
