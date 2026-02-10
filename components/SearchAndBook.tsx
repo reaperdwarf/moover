@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Filter, Plane, Building2, X, Briefcase, Plus, Scale, ArrowRight, Calendar, MapPin, Package, User, DollarSign, Link as LinkIcon } from 'lucide-react';
+import { Search, Filter, Plane, Building2, X, Briefcase, Plus, Scale, ArrowRight, Calendar, MapPin, Package, User, DollarSign, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { TripCard } from './TripCard';
 import { TripDetailSheet } from './TripDetailSheet';
 import { PostTripWizard } from './PostTripWizard';
 import { ProfileDetailSheet } from './ProfileDetailSheet';
-import { RequestDetailSheet } from './RequestDetailSheet'; // NEW
+import { RequestDetailSheet } from './RequestDetailSheet';
 import { useStore } from '../store';
 import { HapticsService } from '../services/capacitorService';
 import { Trip, WishlistRequest, User as UserType } from '../types';
@@ -21,7 +21,7 @@ interface LocationItem {
 }
 
 export const SearchAndBook: React.FC = () => {
-  const { activeTrips, activeRequests, addWishlistRequest, acceptWishlistRequest, getPublicProfile, preferences } = useStore(); 
+  const { activeTrips, activeRequests, addWishlistRequest, acceptWishlistRequest, getPublicProfile, preferences, parseProductLink, currentUser } = useStore(); 
   const { t } = useTranslation();
   
   const [viewMode, setViewMode] = useState<'TRIPS' | 'REQUESTS'>('TRIPS');
@@ -33,22 +33,23 @@ export const SearchAndBook: React.FC = () => {
   // WIZARD & MODAL STATES
   const [isCreatingRequest, setIsCreatingRequest] = useState(false);
   const [isAcceptingRequest, setIsAcceptingRequest] = useState<WishlistRequest | null>(null);
-  
-  // NEW: Detail Sheet State
   const [selectedRequest, setSelectedRequest] = useState<WishlistRequest | null>(null);
-  
-  // PROFILE VIEW STATE
   const [viewingProfile, setViewingProfile] = useState<UserType | null>(null);
+  
+  // ADDED: Auth Guard State
+  const [showAuthWarning, setShowAuthWarning] = useState(false);
 
-  // Create Request Form (Extended)
+  // Create Request Form
   const [reqFrom, setReqFrom] = useState('');
   const [reqTo, setReqTo] = useState('');
   const [reqWeight, setReqWeight] = useState(1);
   const [reqDesc, setReqDesc] = useState('');
-  // New Fields
   const [reqDate, setReqDate] = useState('');
   const [reqValue, setReqValue] = useState('');
   const [reqUrl, setReqUrl] = useState('');
+  
+  // ADDED: URL Parsing State
+  const [isParsingUrl, setIsParsingUrl] = useState(false);
 
   // Accept Request Form
   const [handoffDate, setHandoffDate] = useState('');
@@ -125,17 +126,40 @@ export const SearchAndBook: React.FC = () => {
       setShowFilterSheet(false);
   };
 
+  // ADDED: URL Parser Trigger
+  const handleUrlPaste = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const url = e.target.value;
+      setReqUrl(url);
+      if (url.includes('http')) {
+          setIsParsingUrl(true);
+          const data = await parseProductLink(url);
+          if (data) {
+              setReqDesc(data.title);
+              setReqValue(data.price.toString());
+              setReqWeight(data.weight);
+              HapticsService.notification('SUCCESS');
+          }
+          setIsParsingUrl(false);
+      }
+  };
+
   const handleCreateRequest = () => {
+      // ADDED: Auth Guard
+      if (!currentUser) {
+          setShowAuthWarning(true);
+          setTimeout(() => setShowAuthWarning(false), 3000);
+          return;
+      }
+
       if (!reqFrom || !reqTo || !reqDesc || !reqDate) return;
       const newReq: WishlistRequest = {
           id: 'req_' + Date.now(),
-          requester_uid: 'me',
-          requester_name: 'Me', 
+          requester_uid: currentUser.uid,
+          requester_name: currentUser.display_name, 
           origin_location: reqFrom,
           destination_location: reqTo,
           item_weight_kg: reqWeight,
           item_description: reqDesc,
-          // New Fields
           deadline_date: reqDate,
           item_value: reqValue ? parseFloat(reqValue) : undefined,
           product_url: reqUrl,
@@ -144,8 +168,15 @@ export const SearchAndBook: React.FC = () => {
       };
       addWishlistRequest(newReq);
       setIsCreatingRequest(false);
-      // Reset
       setReqFrom(''); setReqTo(''); setReqWeight(1); setReqDesc(''); setReqDate(''); setReqValue(''); setReqUrl('');
+      HapticsService.notification('SUCCESS');
+  };
+
+  const handleConfirmAcceptance = () => {
+      if (!isAcceptingRequest || !handoffDate || !handoffLocation) return;
+      acceptWishlistRequest(isAcceptingRequest.id, { handoffDate, handoffLocation });
+      setIsAcceptingRequest(null);
+      setHandoffDate(''); setHandoffLocation('');
       HapticsService.notification('SUCCESS');
   };
 
@@ -373,6 +404,12 @@ export const SearchAndBook: React.FC = () => {
               request={selectedRequest} 
               onClose={() => setSelectedRequest(null)}
               onAccept={() => {
+                  // ADDED: Guard
+                  if (!currentUser) {
+                      setShowAuthWarning(true);
+                      setTimeout(() => setShowAuthWarning(false), 3000);
+                      return;
+                  }
                   setSelectedRequest(null);
                   setIsAcceptingRequest(selectedRequest); // Pass to Wizard
               }}
@@ -386,10 +423,18 @@ export const SearchAndBook: React.FC = () => {
       {isCreatingRequest && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsCreatingRequest(false)} />
-            <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-t-[2.5rem] relative z-10 animate-slide-up p-6 pb-safe-bottom h-[80vh] flex flex-col">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-t-[2.5rem] relative z-10 animate-slide-up p-6 pb-safe-bottom h-[85vh] flex flex-col">
                 <div className="w-12 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full mx-auto mb-6 shrink-0" />
                 <h2 className="text-xl font-bold text-moover-dark dark:text-white mb-6 shrink-0">Create Wishlist Request</h2>
                 
+                {/* ADDED: Login Warning */}
+                {showAuthWarning && (
+                    <div className="absolute top-20 left-6 right-6 bg-red-500 text-white p-3 rounded-xl text-center text-sm font-bold animate-fade-in shadow-xl z-50 flex items-center justify-center gap-2">
+                        <AlertCircle className="w-5 h-5" />
+                        Please log in to post a request!
+                    </div>
+                )}
+
                 <div className="space-y-4 flex-1 overflow-y-auto px-1">
                     <div>
                         <label className="text-xs font-bold text-gray-400 uppercase ml-1">From (Vague allowed)</label>
@@ -415,6 +460,21 @@ export const SearchAndBook: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* ADDED: URL PARSER */}
+                    <div>
+                        <label className="text-xs font-bold text-blue-500 uppercase ml-1">Auto-Fill from Link</label>
+                        <div className={`bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl flex items-center gap-3 border border-blue-100 dark:border-blue-800 ${isParsingUrl ? 'opacity-50' : ''}`}>
+                            <LinkIcon className={`w-5 h-5 text-blue-500 ${isParsingUrl ? 'animate-spin' : ''}`} />
+                            <input 
+                                type="url" 
+                                placeholder="Paste Amazon/Ebay Link..." 
+                                value={reqUrl} 
+                                onChange={handleUrlPaste}
+                                className="bg-transparent w-full font-bold dark:text-white outline-none placeholder:text-blue-300"
+                            />
+                        </div>
+                    </div>
+
                     <div>
                         <label className="text-xs font-bold text-gray-400 uppercase ml-1">Description</label>
                         <div className="bg-gray-100 dark:bg-zinc-800 p-4 rounded-xl flex items-center gap-3">
@@ -431,13 +491,6 @@ export const SearchAndBook: React.FC = () => {
                                 <DollarSign className="w-4 h-4 text-green-600" />
                                 <input type="number" placeholder="100" value={reqValue} onChange={e => setReqValue(e.target.value)} className="bg-transparent w-full font-bold dark:text-white outline-none"/>
                             </div>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase ml-1">Product Link (Optional)</label>
-                        <div className="bg-gray-100 dark:bg-zinc-800 p-4 rounded-xl flex items-center gap-3">
-                            <LinkIcon className="w-5 h-5 text-gray-400" />
-                            <input type="url" placeholder="https://amazon.com/..." value={reqUrl} onChange={e => setReqUrl(e.target.value)} className="bg-transparent w-full font-bold dark:text-white outline-none"/>
                         </div>
                     </div>
 

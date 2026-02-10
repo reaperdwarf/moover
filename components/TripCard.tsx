@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trip } from '../types';
-import { Plane, Star, ShieldCheck, ArrowRight, Package, Calendar } from 'lucide-react';
+import { Plane, Star, ShieldCheck, ArrowRight, Package, Calendar, ShoppingBag, Car } from 'lucide-react';
 import { useStore } from '../store';
 
 interface TripCardProps {
@@ -22,6 +22,9 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onPress, onProfileClic
     : trip.price_per_kg;
 
   const unitLabel = isImperial ? 'lbs' : 'kg';
+
+  // Helper to check if they are "Courier Only" (No extra services)
+  const isCourierOnly = !trip.willing_to_buy && !trip.willing_to_pickup;
 
   return (
     <div 
@@ -88,18 +91,49 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onPress, onProfileClic
         </div>
       </div>
 
-      {/* Footer Stats */}
-      <div className="flex gap-2 pt-3 border-t border-gray-50 dark:border-zinc-800">
+      {/* Footer Stats & Capabilities */}
+      <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-50 dark:border-zinc-800">
+        
+        {/* Weight */}
         <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-zinc-800 px-3 py-1.5 rounded-lg">
             <Package className="w-3.5 h-3.5 text-moover-blue" />
             <span className="text-xs font-bold text-moover-dark dark:text-white">{displayWeight} {unitLabel} left</span>
         </div>
+
+        {/* Deadline */}
         {trip.latest_handoff_date && (
              <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg">
                 <Calendar className="w-3.5 h-3.5 text-blue-600" />
                 <span className="text-xs font-bold text-blue-700 dark:text-blue-300">Drop by {trip.latest_handoff_date}</span>
             </div>
         )}
+
+        {/* --- NEW: CAPABILITY BADGES --- */}
+        
+        {/* Willing to Buy */}
+        {trip.willing_to_buy && (
+            <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-lg">
+                <ShoppingBag className="w-3.5 h-3.5 text-green-600" />
+                <span className="text-xs font-bold text-green-700 dark:text-green-300">Shopper</span>
+            </div>
+        )}
+
+        {/* Willing to Pickup */}
+        {trip.willing_to_pickup && (
+            <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/20 px-3 py-1.5 rounded-lg">
+                <Car className="w-3.5 h-3.5 text-purple-600" />
+                <span className="text-xs font-bold text-purple-700 dark:text-purple-300">Pickup</span>
+            </div>
+        )}
+
+        {/* Courier Only (Fallback) */}
+        {isCourierOnly && (
+            <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-900/20 px-3 py-1.5 rounded-lg">
+                <Package className="w-3.5 h-3.5 text-orange-500" />
+                <span className="text-xs font-bold text-orange-700 dark:text-orange-300">Courier Only</span>
+            </div>
+        )}
+
       </div>
     </div>
   );

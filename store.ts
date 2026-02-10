@@ -1,5 +1,39 @@
 import { create } from 'zustand';
-import { User, UserRole, Trip, Order, OrderStatus, WorkflowType, Chat, Message, WishlistRequest, Review } from './types';
+import { User, UserRole, Trip, Order, OrderStatus, WorkflowType, Chat, Message, WishlistRequest, Review, OnboardingStage } from './types';
+import Tesseract from 'tesseract.js'; 
+import { BrowserMultiFormatReader } from '@zxing/library'; 
+// @ts-ignore
+import { airports } from 'airports-json'; 
+
+// --- CONFIGURATION ---
+// IMPORTANT: You must replace this with your actual Google Cloud API Key
+// Ensure "Cloud Vision API" is enabled in your Google Cloud Console
+const GOOGLE_CLOUD_VISION_API_KEY = import.meta.env.VITE_GOOGLE_CLOUD_VISION_API_KEY; 
+
+// GLOBAL AIRPORT TO CITY MAPPING
+const GLOBAL_AIRPORT_MAP = new Map<string, string>();
+
+// Initialize Airport Map (Handle potential import structure variations)
+const airportList = airports || []; 
+if (Array.isArray(airportList)) {
+    airportList.forEach((a: any) => {
+        const code = a.iata || a.iata_code;
+        if (code && code.length === 3) {
+            const locationName = `${a.city}, ${a.country}`;
+            GLOBAL_AIRPORT_MAP.set(code, locationName);
+        }
+    });
+}
+
+// NOISE BLOCKLIST
+const NOISE_BLOCKLIST = new Set([
+    'THE', 'AND', 'FOR', 'NOT', 'YES', 'AIR', 'BAG', 'SEQ', 'PCS', 'WGT', 'KGS', 'LBS', 
+    'DOM', 'INT', 'GATE', 'SEAT', 'ZONE', 'TKT', 'PNR', 'ETKT', 'FLT', 'DATE', 'TIME',
+    'GRP', 'BN', 'M', 'F', 'C', 'Y', 'P', 'J', 'CLASS', 'NAME', 'FROM', 'TO', 'VIA',
+    'ARR', 'DEP', 'BOARD', 'BOARDING', 'PASS', 'TKNE', 'API', 'REF', 'SIT', 'PSGR',
+    'ECO', 'BUS', 'FIRST', 'SEC', 'OPR', 'FLY', 'STD', 'STA', 'ETD', 'ETA', 'DOC', 'INF',
+    'MSC', 'MR', 'MRS', 'MS'
+]);
 
 interface UserPreferences {
   currency: 'USD' | 'EUR' | 'HNL';
@@ -40,6 +74,11 @@ interface AppState {
 
   getPublicProfile: (uid: string) => User;
 
+  detectUserLocation: () => void; 
+  loginWithProvider: (provider: 'google' | 'apple') => Promise<void>; 
+  parseBoardingPass: (file: any) => Promise<{ origin: string, destination: string, date: string }>; 
+  parseProductLink: (url: string) => Promise<{ title: string, price: number, weight: number, image: string }>; 
+
   updatePreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => void;
   toggleNotification: (key: keyof UserPreferences['notifications']) => void;
 }
@@ -57,7 +96,7 @@ const MOCK_TRIPS: Trip[] = [
     outbound_date: '2023-11-15',
     latest_handoff_date: '2023-11-13',
     willing_to_buy: true,
-    willing_to_pickup: true, // Sarah does it all
+    willing_to_pickup: true, 
     return_date: '2023-11-22',
     is_round_trip: true,
     available_weight_kg: 12,
@@ -75,7 +114,7 @@ const MOCK_TRIPS: Trip[] = [
     destination_geohash: 'xn76ur',
     outbound_date: '2023-11-18',
     latest_handoff_date: '2023-11-16',
-    willing_to_buy: false, // David is Courier Only
+    willing_to_buy: false, 
     willing_to_pickup: false, 
     is_round_trip: false,
     available_weight_kg: 5,
@@ -160,6 +199,8 @@ export const useStore = create<AppState>((set, get) => ({
       is_id_verified: true,
       fcm_token: 'token_xyz',
       created_at: new Date(),
+      onboarding_stage: OnboardingStage.STAGE_2_BASIC_AUTH,
+      profile_completion_score: 30,
       sender_stats: { items_sent: 0, endorsements: [] },
       traveler_stats: { total_trips: 0, successful_trips: 0, rating: 5.0, on_time_percentage: 100 }
     }
@@ -304,6 +345,8 @@ export const useStore = create<AppState>((set, get) => ({
           created_at: new Date('2023-01-15'),
           joined_date: 'Jan 2023',
           languages: ['English', 'Spanish'],
+          onboarding_stage: OnboardingStage.STAGE_4_VERIFIED,
+          profile_completion_score: 95,
           sender_stats: { items_sent: 12, endorsements: ['Reliable', 'Friendly'] },
           traveler_stats: { 
               total_trips: 34, 
@@ -313,5 +356,163 @@ export const useStore = create<AppState>((set, get) => ({
           },
           reviews: MOCK_REVIEWS
       };
+  },
+
+  loginWithProvider: async (provider) => {
+      set({
+          currentUser: {
+              uid: 'user_' + Date.now(),
+              display_name: 'Dennis Barjum',
+              email: 'dennis@example.com',
+              photo_url: 'https://picsum.photos/200',
+              is_id_verified: false,
+              fcm_token: 'mock',
+              created_at: new Date(),
+              onboarding_stage: OnboardingStage.STAGE_2_BASIC_AUTH,
+              profile_completion_score: 30,
+              sender_stats: { items_sent: 0, endorsements: [] },
+              traveler_stats: { total_trips: 0, successful_trips: 0, rating: 5.0, on_time_percentage: 100 }
+          }
+      });
+  },
+
+  detectUserLocation: () => {
+      console.log("Detecting Location... Honduras found.");
+      set(state => ({
+          preferences: {
+              ...state.preferences,
+              currency: 'HNL',
+              unitSystem: 'IMPERIAL' 
+          }
+      }));
+  },
+
+  // INTELLIGENT TICKET PARSER with Global City Mapping
+  parseBoardingPass: async (file) => {
+      if (!file) return { origin: '', destination: '', date: '' };
+
+      // 1. Try Barcode First
+      try {
+          const codeReader = new BrowserMultiFormatReader();
+          const imageUrl = URL.createObjectURL(file);
+          const result = await codeReader.decodeFromImageUrl(imageUrl);
+          const rawText = result.getText();
+          console.log("Barcode Found:", rawText);
+
+          const airportCodes = rawText.match(/[A-Z]{3}/g);
+          if (airportCodes && airportCodes.length >= 2) {
+              // Convert Code -> City Name
+              const originCode = airportCodes[0];
+              const destCode = airportCodes[1];
+              
+              return {
+                  origin: GLOBAL_AIRPORT_MAP.get(originCode) || originCode,
+                  destination: GLOBAL_AIRPORT_MAP.get(destCode) || destCode,
+                  date: new Date().toISOString().split('T')[0]
+              };
+          }
+      } catch (err) {
+          console.log("Barcode failed, trying Cloud/OCR...");
+      }
+
+      // 2. Try Google Cloud Vision
+      let textToProcess = '';
+      if (GOOGLE_CLOUD_VISION_API_KEY && GOOGLE_CLOUD_VISION_API_KEY.length > 30) {
+          try {
+              const reader = new FileReader();
+              const base64Promise = new Promise<string>((resolve) => {
+                  reader.onload = (e) => resolve(e.target?.result as string);
+                  reader.readAsDataURL(file);
+              });
+              const base64Data = (await base64Promise).split(',')[1];
+
+              const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_CLOUD_VISION_API_KEY}`, {
+                  method: 'POST',
+                  body: JSON.stringify({
+                      requests: [{
+                          image: { content: base64Data },
+                          features: [{ type: 'TEXT_DETECTION' }]
+                      }]
+                  })
+              });
+              
+              const result = await response.json();
+              textToProcess = result.responses[0]?.fullTextAnnotation?.text || '';
+          } catch (err) {
+              console.error("Cloud Vision failed:", err);
+          }
+      }
+
+      // 3. Fallback to Tesseract
+      if (!textToProcess) {
+          try {
+              const result = await Tesseract.recognize(file, 'eng');
+              textToProcess = result.data.text;
+          } catch (error) {
+              console.error("Tesseract failed", error);
+          }
+      }
+
+      return extractFlightDetails(textToProcess);
+  },
+
+  parseProductLink: async (url) => {
+      return new Promise(resolve => {
+          setTimeout(() => {
+              resolve({
+                  title: 'Sony WH-1000XM5 Wireless Headphones',
+                  price: 348.00,
+                  weight: 0.5,
+                  image: 'https://picsum.photos/400'
+              });
+          }, 1500);
+      });
   }
 }));
+
+// Helper: Smart Filtering & Mapping
+function extractFlightDetails(text: string) {
+    if (!text) return { origin: '', destination: '', date: '' };
+    
+    const cleanText = text.toUpperCase();
+    const codeRegex = /\b[A-Z]{3}\b/g;
+    
+    // Check against the GLOBAL_AIRPORT_MAP keys
+    const foundCodes = (cleanText.match(codeRegex) || []).filter(code => 
+        !NOISE_BLOCKLIST.has(code) && 
+        GLOBAL_AIRPORT_MAP.has(code) // Only accept real airports
+    );
+
+    const uniqueCodes = [...new Set(foundCodes)];
+    
+    let origin = '';
+    let destination = '';
+
+    // LOGIC: CONNECTING FLIGHTS
+    // First Valid Airport = Origin
+    // Last Valid Airport = Destination
+    if (uniqueCodes.length >= 2) {
+        origin = uniqueCodes[0];
+        destination = uniqueCodes[uniqueCodes.length - 1];
+        
+        if (origin === destination && uniqueCodes.length > 2) {
+            destination = uniqueCodes[uniqueCodes.length - 2];
+        }
+    }
+
+    // Convert to City Names if found
+    const originName = GLOBAL_AIRPORT_MAP.get(origin) || origin;
+    const destName = GLOBAL_AIRPORT_MAP.get(destination) || destination;
+
+    // Attempt Date
+    let parsedDate = new Date().toISOString().split('T')[0];
+    const dateMatch = cleanText.match(/(\d{1,2})[\/\-\s]([A-Z]{3}|\d{1,2})[\/\-\s,.]+(\d{2,4})/);
+    if (dateMatch) {
+        const d = new Date(dateMatch[0]);
+        if (!isNaN(d.getTime()) && d.getFullYear() > 2020) {
+            parsedDate = d.toISOString().split('T')[0];
+        }
+    }
+
+    return { origin: originName, destination: destName, date: parsedDate };
+}

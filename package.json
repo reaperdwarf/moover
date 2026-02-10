@@ -17,7 +17,10 @@
     "i18next": "^23.7.16",
     "react-i18next": "^14.0.0",
     "i18next-browser-languagedetector": "^7.2.0",
-    "@capacitor/google-maps": "latest"
+    "@capacitor/google-maps": "latest",
+    "tesseract.js": "^6.0.0",
+    "@zxing/library": "^0.21.3",
+    "airports-json": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

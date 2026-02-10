@@ -313,7 +313,7 @@ export const OfferWizard: React.FC<OfferWizardProps> = ({ trip, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="pt-4 mt-auto shrink-0">
+        <div className="pt-4 mt-auto shrink-0 relative">
             {step < 3 ? (
                 <button 
                     onClick={handleNext}

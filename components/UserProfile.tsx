@@ -8,7 +8,7 @@ import { HapticsService } from '../services/capacitorService';
 import { SettingsTab } from './SettingsTab';
 
 export const UserProfile: React.FC = () => {
-  const { currentUser, currentRole, toggleRole, createProfile, setUser } = useStore();
+  const { currentUser, currentRole, toggleRole, createProfile, setUser, loginWithProvider } = useStore();
   const [newName, setNewName] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const { t } = useTranslation();
@@ -26,6 +26,31 @@ export const UserProfile: React.FC = () => {
            <p className="text-gray-500 mb-10 leading-relaxed">
              {t('create_profile_desc')}
            </p>
+
+           {/* ADDED: Social Login Buttons */}
+           <div className="space-y-3 mb-8">
+               <button 
+                   onClick={() => loginWithProvider('apple')}
+                   className="w-full py-4 bg-black text-white font-bold rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform"
+               >
+                   Sign in with Apple
+               </button>
+               <button 
+                   onClick={() => loginWithProvider('google')}
+                   className="w-full py-4 bg-white border-2 border-gray-200 text-gray-700 font-bold rounded-2xl flex justify-center items-center gap-2 active:scale-95 transition-transform"
+               >
+                   Sign in with Google
+               </button>
+               
+               <div className="relative py-4">
+                   <div className="absolute inset-0 flex items-center">
+                       <div className="w-full border-t border-gray-200 dark:border-zinc-700"></div>
+                   </div>
+                   <div className="relative flex justify-center text-sm">
+                       <span className="px-2 bg-white dark:bg-zinc-900 text-gray-500">Or continue with email</span>
+                   </div>
+               </div>
+           </div>
 
            <div className="space-y-5">
               <div className="space-y-2">
@@ -64,7 +89,13 @@ export const UserProfile: React.FC = () => {
 
            <div className="mt-8 text-center">
              <span className="text-gray-400 text-sm font-medium">{t('already_have_account')} </span>
-             <button className="text-moover-blue font-bold text-sm">{t('sign_in')}</button>
+             {/* ADDED: Click handler for Sign In */}
+             <button 
+                onClick={() => loginWithProvider('google')}
+                className="text-moover-blue font-bold text-sm"
+             >
+                {t('sign_in')}
+             </button>
            </div>
         </div>
       </div>

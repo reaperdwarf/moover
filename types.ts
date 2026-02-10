@@ -21,6 +21,14 @@ export interface Review {
   role: 'SENDER' | 'TRAVELER';
 }
 
+// Onboarding Stages
+export enum OnboardingStage {
+  STAGE_1_VISITOR = 0,
+  STAGE_2_BASIC_AUTH = 1,
+  STAGE_3_TRAVELER_READY = 2,
+  STAGE_4_VERIFIED = 3
+}
+
 export interface User {
   uid: string;
   display_name: string;
@@ -29,9 +37,15 @@ export interface User {
   fcm_token: string | null;
   created_at: Date;
   
+  // Profile Fields
+  email?: string; 
   joined_date?: string; 
   languages?: string[];
   reviews?: Review[]; 
+
+  // Gamification
+  profile_completion_score: number; 
+  onboarding_stage: OnboardingStage;
 
   sender_stats: {
     items_sent: number;
@@ -54,8 +68,8 @@ export interface Trip {
   latest_handoff_date?: string; 
   
   // LOGISTICS FLAGS
-  willing_to_buy?: boolean;    // Can buy items
-  willing_to_pickup?: boolean; // Can drive to pick up items
+  willing_to_buy?: boolean;    
+  willing_to_pickup?: boolean; 
   
   linked_request_id?: string; 
   
@@ -143,6 +157,16 @@ export interface WishlistRequest {
   deadline_date?: string; 
   item_value?: number; 
   product_url?: string; 
+  // Automation field
+  item_image_url?: string; 
   status: 'OPEN' | 'ACCEPTED' | 'COMPLETED';
   created_at: string;
+}
+
+// ADDED: GLOBAL WINDOW AUGMENTATION
+// This tells TypeScript that 'window.google' is valid.
+declare global {
+  interface Window {
+    google: any;
+  }
 }

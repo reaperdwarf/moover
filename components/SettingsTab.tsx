@@ -5,16 +5,17 @@ import { useStore } from '../store';
 import { 
   ChevronLeft, ChevronRight, ShieldCheck, Lock, CreditCard, 
   Wallet, Globe, Moon, Ruler, Bell, LifeBuoy, FileText, 
-  Trash2, Smartphone, Mail, AlertTriangle, Languages 
+  Trash2, Smartphone, Mail, AlertTriangle, Languages, Shield, LogOut 
 } from 'lucide-react';
 import { HapticsService } from '../services/capacitorService';
+import { OnboardingStage } from '../types';
 
 interface SettingsTabProps {
   onClose: () => void;
 }
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({ onClose }) => {
-  const { preferences, updatePreference, toggleNotification, currentUser, deleteAccount } = useStore();
+  const { preferences, updatePreference, toggleNotification, currentUser, deleteAccount, setUser } = useStore();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { t, i18n } = useTranslation();
 
@@ -22,6 +23,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onClose }) => {
     i18n.changeLanguage(lang);
     HapticsService.impact('LIGHT');
   };
+
+  // ADDED: Profile Strength Helper
+  const getStageLabel = (stage: number) => {
+      switch(stage) {
+          case 0: return "Visitor";
+          case 1: return "Basic Member";
+          case 2: return "Traveler Ready";
+          case 3: return "Fully Verified";
+          default: return "Unknown";
+      }
+  };
+
+  const completion = currentUser ? currentUser.profile_completion_score : 0;
+  const stage = currentUser ? currentUser.onboarding_stage : 0;
 
   const SectionHeader = ({ title }: { title: string }) => (
     <div className="px-6 pb-2 mt-8 mb-2">
@@ -79,7 +94,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onClose }) => {
     </div>
   );
 
-  // Use Portal to break out of stacking context of UserProfile
   return createPortal(
     <div className="fixed inset-0 z-[100] bg-gray-50 flex flex-col animate-slide-up">
       {/* Header */}
@@ -95,6 +109,56 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onClose }) => {
 
       <div className="flex-1 overflow-y-auto pb-safe-bottom">
         
+        {/* ADDED: PROFILE STRENGTH METER */}
+        {currentUser && (
+            <div className="m-6 bg-white dark:bg-zinc-900 p-5 rounded-3xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+                <div className="flex items-center gap-4 mb-4">
+                    <img 
+                        src={currentUser.photo_url} 
+                        className="w-12 h-12 rounded-full object-cover" 
+                    />
+                    <div>
+                        <div className="font-bold text-moover-dark dark:text-white">{currentUser.display_name}</div>
+                        <div className="flex items-center gap-1 text-xs text-moover-blue font-bold">
+                            <Shield className="w-3 h-3" /> {getStageLabel(stage)}
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="flex justify-between items-end mb-2">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Profile Strength</span>
+                    <span className="text-sm font-bold text-moover-blue">{completion}%</span>
+                </div>
+                <div className="h-2 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden mb-4">
+                    <div 
+                        className="h-full bg-gradient-to-r from-moover-blue to-purple-500 transition-all duration-1000" 
+                        style={{ width: `${completion}%` }} 
+                    />
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    {stage < 3 && (
+                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-zinc-800 px-3 py-2 rounded-xl shrink-0 border border-gray-100 dark:border-zinc-700">
+                            <div className="p-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full text-gray-500">
+                                <CreditCard className="w-3 h-3" />
+                            </div>
+                            <div className="text-xs font-bold text-gray-600 dark:text-gray-300">Add Payment</div>
+                            <span className="text-[10px] text-green-500 font-bold">+20%</span>
+                        </div>
+                    )}
+                    {stage < 4 && (
+                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-zinc-800 px-3 py-2 rounded-xl shrink-0 border border-gray-100 dark:border-zinc-700">
+                            <div className="p-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full text-gray-500">
+                                <Smartphone className="w-3 h-3" />
+                            </div>
+                            <div className="text-xs font-bold text-gray-600 dark:text-gray-300">Verify Phone</div>
+                            <span className="text-[10px] text-green-500 font-bold">+15%</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
         {/* SECTION 1: ACCOUNT & SECURITY */}
         <SectionHeader title={t('account_security')} />
         <div className="bg-white border-y border-gray-100">
@@ -231,49 +295,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onClose }) => {
             <ListItem icon={FileText} label={t('terms_privacy')} />
         </div>
 
+        {/* MODIFIED: Log Out instead of Delete Account */}
         <div className="px-6 pb-24">
             <button 
-                onClick={() => setShowDeleteModal(true)}
-                className="w-full bg-white border border-red-100 py-4 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold active:bg-red-50 transition-colors shadow-sm"
+                onClick={() => {
+                    HapticsService.impact('MEDIUM');
+                    setUser(null as any); // Logout
+                    onClose();
+                }}
+                className="w-full bg-white border border-gray-200 py-4 rounded-xl flex items-center justify-center gap-2 text-gray-600 font-bold active:bg-gray-50 transition-colors shadow-sm"
             >
-                <Trash2 className="w-5 h-5" /> {t('delete_account')}
+                <LogOut className="w-5 h-5" /> {t('sign_out')}
             </button>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowDeleteModal(false)} />
-            <div className="bg-white w-full max-w-sm rounded-2xl p-6 relative z-10 shadow-2xl animate-fade-in-up">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 mx-auto">
-                    <AlertTriangle className="w-6 h-6 text-red-500" />
-                </div>
-                <h3 className="text-xl font-bold text-center text-moover-dark mb-2">{t('delete_account_confirm')}</h3>
-                <p className="text-center text-gray-500 text-sm mb-6 leading-relaxed">
-                    {t('delete_account_desc')}
-                </p>
-                <div className="flex gap-3">
-                    <button 
-                        onClick={() => setShowDeleteModal(false)}
-                        className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl active:scale-95 transition-transform"
-                    >
-                        {t('cancel')}
-                    </button>
-                    <button 
-                        onClick={() => {
-                            HapticsService.notification('WARNING');
-                            deleteAccount();
-                            onClose(); // Close settings tab which will unmount as user becomes null
-                        }}
-                        className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-500/30 active:scale-95 transition-transform"
-                    >
-                        {t('delete')}
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
     </div>,
     document.body
   );

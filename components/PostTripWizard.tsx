@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, ChevronRight, Plane, Car, Train, Briefcase, Package, ShoppingBag, CheckCircle, Calendar, MapPin, DollarSign, ChevronLeft, Scale, Lock, AlertCircle } from 'lucide-react';
+import { X, ChevronRight, Plane, Car, Train, Briefcase, Package, ShoppingBag, CheckCircle, Calendar, MapPin, DollarSign, ChevronLeft, Scale, Lock, AlertCircle, ScanLine, Upload, Camera } from 'lucide-react';
 import { useStore } from '../store';
 import { HapticsService } from '../services/capacitorService';
 import { Trip, WishlistRequest } from '../types';
@@ -13,31 +13,94 @@ interface PostTripWizardProps {
 }
 
 export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, initialDestination, linkedRequest, onClose }) => {
-  const { currentUser, addTrip, acceptWishlistRequest, preferences } = useStore(); 
+  const { currentUser, addTrip, acceptWishlistRequest, preferences, parseBoardingPass } = useStore(); 
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
 
-  // --- INTELLIGENT DEFAULT SETTINGS ---
   const defaultIsMetric = preferences.unitSystem === 'METRIC';
 
-  // Form State
   const [origin, setOrigin] = useState(linkedRequest ? linkedRequest.origin_location : initialOrigin);
   const [destination, setDestination] = useState(linkedRequest ? linkedRequest.destination_location : initialDestination);
   const [departureDate, setDepartureDate] = useState('');
   
-  // DATES & LOGISTICS
+  const [isScanning, setIsScanning] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Google Autocomplete Refs
+  const originInputRef = useRef<HTMLInputElement>(null);
+  const destinationInputRef = useRef<HTMLInputElement>(null);
+
   const [deadlineDate, setDeadlineDate] = useState('');
   const [willingToBuy, setWillingToBuy] = useState(false);
-  const [willingToPickup, setWillingToPickup] = useState(false); // Preserved Feature
+  const [willingToPickup, setWillingToPickup] = useState(false); 
   
   const [returnDate, setReturnDate] = useState('');
   const [isRoundTrip, setIsRoundTrip] = useState(false);
   const [showLoginWarning, setShowLoginWarning] = useState(false);
 
-  // --- CAPACITY STATE (LOCKED IF GIG) ---
+  // --- GOOGLE MAPS AUTOCOMPLETE SETUP ---
+  useEffect(() => {
+      if (!window.google || !window.google.maps || !window.google.maps.places) return;
+
+      if (originInputRef.current) {
+          const originAutocomplete = new window.google.maps.places.Autocomplete(originInputRef.current, { types: ['(cities)'] });
+          originAutocomplete.addListener('place_changed', () => {
+              const place = originAutocomplete.getPlace();
+              if (place.formatted_address) setOrigin(place.formatted_address);
+          });
+      }
+
+      if (destinationInputRef.current) {
+          const destAutocomplete = new window.google.maps.places.Autocomplete(destinationInputRef.current, { types: ['(cities)'] });
+          destAutocomplete.addListener('place_changed', () => {
+              const place = destAutocomplete.getPlace();
+              if (place.formatted_address) setDestination(place.formatted_address);
+          });
+      }
+  }, [step]); // Re-run when step changes (inputs appear)
+
+  // ACTION: TRIGGER CAMERA
+  const handleScanClick = () => {
+      HapticsService.impact('MEDIUM');
+      cameraInputRef.current?.click();
+  };
+
+  // ACTION: TRIGGER FILE UPLOAD
+  const handleUploadClick = () => {
+      HapticsService.impact('LIGHT');
+      fileInputRef.current?.click();
+  };
+
+  // COMMON HANDLER FOR BOTH
+  const handleFileProcessing = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      setIsScanning(true);
+      HapticsService.impact('MEDIUM');
+      
+      const data = await parseBoardingPass(file);
+      
+      if (data.origin) {
+          setOrigin(data.origin); // Will be "City, Country" from Store map
+          setDestination(data.destination); // Will be "City, Country"
+          setDepartureDate(data.date);
+          
+          const d = new Date(data.date);
+          d.setDate(d.getDate() - 2);
+          setDeadlineDate(d.toISOString().split('T')[0]);
+          HapticsService.notification('SUCCESS');
+      } else {
+          HapticsService.notification('ERROR');
+          alert("Could not read ticket. Please enter details manually.");
+      }
+      
+      setIsScanning(false);
+  };
+
   const getInitialWeight = () => {
       if (linkedRequest) {
-          // Locked to request weight
           return defaultIsMetric 
             ? linkedRequest.item_weight_kg 
             : Math.round(linkedRequest.item_weight_kg * 2.20462);
@@ -64,7 +127,6 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
   };
 
   const toggleWeightUnit = () => {
-    // If locked, we still allow unit toggle for viewing convenience, but value remains derived from request
     HapticsService.impact('LIGHT');
     if (weightUnit === 'KG') {
         setWeight(Math.round(weight * 2.20462));
@@ -126,7 +188,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
         outbound_date: departureDate || new Date().toISOString().split('T')[0],
         latest_handoff_date: deadlineDate,
         willing_to_buy: willingToBuy,
-        willing_to_pickup: willingToPickup, // Saved
+        willing_to_pickup: willingToPickup, 
         linked_request_id: linkedRequest ? linkedRequest.id : undefined,
         return_date: isRoundTrip ? returnDate : undefined,
         is_round_trip: isRoundTrip,
@@ -164,7 +226,6 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
       
       <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-t-[2.5rem] p-6 relative z-10 animate-slide-up pb-safe-bottom shadow-2xl h-[85vh] flex flex-col transition-colors">
         
-        {/* Header */}
         <div className="w-12 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full mx-auto mb-6 shrink-0" />
         <div className="flex items-center justify-between mb-2 shrink-0">
             {step > 1 ? (
@@ -174,7 +235,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
             ) : <div className="w-9" />}
             
             <h2 className="text-lg font-bold text-moover-dark dark:text-white">
-                {linkedRequest ? "Accept Gig & Create Trip" : t('wizard_step1')}
+                {linkedRequest ? "Accept Gig" : t('wizard_step1')}
             </h2>
             
             <button onClick={onClose} className="p-2 bg-gray-50 dark:bg-zinc-800 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 active:bg-gray-200 transition-colors">
@@ -186,10 +247,61 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
 
         <div className="flex-1 overflow-y-auto px-1 py-2 no-scrollbar">
             
-            {/* STEP 1: ROUTE */}
             {step === 1 && (
                 <div className="space-y-5 animate-fade-in">
-                    {/* Pre-fill Notice */}
+                    
+                    {!linkedRequest && (
+                        <div>
+                            <div className="flex justify-between items-center mb-2 px-1">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Optional: Auto-fill details</span>
+                            </div>
+
+                            <div className="flex gap-3 mb-2">
+                                {/* CAMERA BUTTON */}
+                                <button 
+                                    onClick={handleScanClick}
+                                    disabled={isScanning}
+                                    className="flex-1 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform"
+                                >
+                                    {isScanning ? (
+                                        <span className="text-blue-600 font-bold animate-pulse text-xs">Scanning...</span>
+                                    ) : (
+                                        <>
+                                            <Camera className="w-6 h-6 text-blue-600" />
+                                            <span className="text-blue-700 dark:text-blue-300 font-bold text-xs">Scan Ticket</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* UPLOAD BUTTON */}
+                                <button 
+                                    onClick={handleUploadClick}
+                                    disabled={isScanning}
+                                    className="flex-1 p-4 bg-gray-50 dark:bg-zinc-800 rounded-2xl border border-gray-100 dark:border-zinc-700 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform"
+                                >
+                                    <Upload className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+                                    <span className="text-gray-700 dark:text-gray-300 font-bold text-xs">Upload PDF/Img</span>
+                                </button>
+                                
+                                {/* Hidden Inputs */}
+                                <input 
+                                    ref={cameraInputRef} type="file" className="hidden" 
+                                    accept="image/*" capture="environment" 
+                                    onChange={handleFileProcessing} 
+                                />
+                                <input 
+                                    ref={fileInputRef} type="file" className="hidden" 
+                                    accept="image/*,application/pdf" 
+                                    onChange={handleFileProcessing} 
+                                />
+                            </div>
+                            
+                            <div className="text-center text-[10px] text-gray-400 font-medium mb-4">
+                                — OR ENTER MANUALLY BELOW —
+                            </div>
+                        </div>
+                    )}
+
                     {linkedRequest && (
                         <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-xl border border-orange-100 dark:border-orange-800 flex items-center gap-3 mb-2">
                             <CheckCircle className="w-5 h-5 text-orange-600" />
@@ -204,6 +316,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
                         <div className={`flex items-center bg-gray-50 dark:bg-zinc-800 p-4 rounded-xl border ${!origin.trim() ? 'border-gray-200 dark:border-zinc-700' : 'border-moover-blue/30'} focus-within:ring-2 focus-within:ring-moover-blue transition-all`}>
                             <MapPin className={`w-5 h-5 mr-3 shrink-0 ${!origin.trim() ? 'text-gray-400' : 'text-moover-blue'}`} />
                             <input 
+                                ref={originInputRef}
                                 type="text" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Origin City"
                                 className="bg-transparent w-full font-bold text-moover-dark dark:text-white outline-none placeholder:text-gray-300 dark:placeholder:text-zinc-500"
                             />
@@ -214,6 +327,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
                         <div className={`flex items-center bg-gray-50 dark:bg-zinc-800 p-4 rounded-xl border ${!destination.trim() ? 'border-gray-200 dark:border-zinc-700' : 'border-moover-dark/30 dark:border-white/30'} focus-within:ring-2 focus-within:ring-moover-blue transition-all`}>
                             <MapPin className="w-5 h-5 text-moover-dark dark:text-white mr-3 shrink-0" />
                             <input 
+                                ref={destinationInputRef}
                                 type="text" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Destination City"
                                 className="bg-transparent w-full font-bold text-moover-dark dark:text-white outline-none placeholder:text-gray-300 dark:placeholder:text-zinc-500"
                             />
@@ -326,7 +440,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
                         </div>
                     </div>
 
-                    {/* Presets (Disabled if Locked) */}
+                    {/* Presets */}
                     <div className={`grid grid-cols-2 gap-4 ${linkedRequest ? 'opacity-50 pointer-events-none' : ''}`}>
                         {[
                             { label: t('pouch'), weightVal: weightUnit === 'KG' ? 1 : 2, icon: ShoppingBag, desc: t('pouch_desc') },
@@ -356,7 +470,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
                         ))}
                     </div>
 
-                    {/* Custom Capacity Slider (Disabled if Locked) */}
+                    {/* Custom Capacity Slider */}
                     <div className={`bg-gray-50 dark:bg-zinc-800 p-6 rounded-3xl border border-gray-100 dark:border-zinc-700 ${linkedRequest ? 'opacity-75 pointer-events-none' : ''}`}>
                         <div className="flex justify-between items-center mb-6">
                             <span className="font-bold text-gray-600 dark:text-gray-300 flex items-center gap-2">
@@ -369,12 +483,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
                         </div>
                         
                         <input 
-                            type="range" 
-                            min="1" 
-                            max={weightUnit === 'KG' ? 50 : 110} 
-                            step="1"
-                            value={weight}
-                            onChange={(e) => setWeight(parseInt(e.target.value))}
+                            type="range" min="1" max={weightUnit === 'KG' ? 50 : 110} step="1" value={weight} onChange={(e) => setWeight(parseInt(e.target.value))}
                             className="w-full h-4 bg-gray-200 dark:bg-zinc-700 rounded-full appearance-none cursor-pointer accent-moover-blue"
                         />
                         {linkedRequest ? (
@@ -459,6 +568,7 @@ export const PostTripWizard: React.FC<PostTripWizardProps> = ({ initialOrigin, i
             {step === 5 && (
                 <div className="space-y-6 animate-fade-in">
                     <div className="bg-gray-50 dark:bg-zinc-800 rounded-3xl p-6 border border-gray-100 dark:border-zinc-700 relative overflow-hidden shadow-sm">
+                        {/* Ticket Stub Visual */}
                         <div className="absolute top-0 left-0 right-0 h-2 bg-moover-blue" />
                         
                         <div className="flex justify-between items-start mb-6 pt-2">
